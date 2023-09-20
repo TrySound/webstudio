@@ -17,6 +17,10 @@ export const propsToArgTypes = (
       .filter(([propName]) => propName.startsWith("data-ws-") === false)
       // Exclude props that are in the exclude list
       .filter(([propName]) => exclude.includes(propName) === false)
+      .filter(
+        ([_propName, prop]) =>
+          prop.parent?.fileName.endsWith("/@types/react/index.d.ts") !== true
+      )
       .reduce(
         (result, current) => {
           const [propName, prop] = current;
