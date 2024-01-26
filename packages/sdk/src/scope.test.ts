@@ -30,3 +30,12 @@ test("prefix name starting with digit", () => {
   const scope = createScope(["_"]);
   expect(scope.getName("1", "123")).toEqual("_123");
 });
+
+test("allow extending other scopes", () => {
+  const projectScope = createScope();
+  projectScope.getName("1", "Component");
+  projectScope.getName("2", "Component");
+
+  const moduleScope = createScope([], projectScope);
+  expect(moduleScope.getName("3", "Component")).toEqual("Component_2");
+});

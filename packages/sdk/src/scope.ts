@@ -5,6 +5,10 @@ export type Scope = {
    * or suffix if already used.
    */
   getName(id: string, preferredName: string): string;
+  __internal: {
+    freeIndexByPreferredName: Map<string, number>;
+    scopedNameByIdMap: Map<string, string>;
+  };
 };
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#identifiers
@@ -30,9 +34,16 @@ const normalizeName = (name: string) => {
  * occupiedIdentifiers parameter prevents collision with hardcoded
  * identifiers.
  */
-export const createScope = (occupiedIdentifiers: string[] = []): Scope => {
-  const freeIndexByPreferredName = new Map<string, number>();
-  const scopedNameByIdMap = new Map<string, string>();
+export const createScope = (
+  occupiedIdentifiers: string[] = [],
+  parentScope?: Scope
+): Scope => {
+  const freeIndexByPreferredName = new Map<string, number>(
+    parentScope?.__internal.freeIndexByPreferredName
+  );
+  const scopedNameByIdMap = new Map<string, string>(
+    parentScope?.__internal.scopedNameByIdMap
+  );
   for (const identifier of occupiedIdentifiers) {
     freeIndexByPreferredName.set(identifier, 1);
   }
@@ -54,6 +65,10 @@ export const createScope = (occupiedIdentifiers: string[] = []): Scope => {
   };
 
   return {
+    __internal: {
+      freeIndexByPreferredName,
+      scopedNameByIdMap,
+    },
     getName,
   };
 };

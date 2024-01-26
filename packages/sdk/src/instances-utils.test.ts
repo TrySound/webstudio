@@ -1,10 +1,14 @@
 import { expect, test } from "@jest/globals";
 import type { Instance, Instances } from "./schema/instances";
 import {
+  findFragmentInstanceIds,
   findTreeInstanceIds,
   findTreeInstanceIdsExcludingSlotDescendants,
   parseComponentName,
 } from "./instances-utils";
+
+const toMap = <T extends { id: string }>(list: T[]) =>
+  new Map(list.map((item) => [item.id, item]));
 
 const createInstance = (
   id: Instance["id"],
@@ -19,55 +23,64 @@ const createInstance = (
   };
 };
 
-const createInstancePair = (
-  id: Instance["id"],
-  component: string,
-  children: Instance["children"]
-) => {
-  return [id, createInstance(id, component, children)] as const;
-};
-
 test("find all tree instances", () => {
-  const instances: Instances = new Map([
-    createInstancePair("1", "Body", [{ type: "id", value: "3" }]),
+  const instances: Instances = toMap([
+    createInstance("1", "Body", [{ type: "id", value: "3" }]),
     // this is outside of subtree
-    createInstancePair("2", "Box", []),
+    createInstance("2", "Box", []),
     // these should be matched
-    createInstancePair("3", "Box", [
+    createInstance("3", "Box", [
       { type: "id", value: "4" },
       { type: "id", value: "5" },
     ]),
-    createInstancePair("4", "Box", []),
-    createInstancePair("5", "Box", []),
+    createInstance("4", "Box", []),
+    createInstance("5", "Box", []),
     // this one is from other tree
-    createInstancePair("6", "Box", []),
+    createInstance("6", "Box", []),
   ]);
   expect(findTreeInstanceIds(instances, "3")).toEqual(new Set(["3", "4", "5"]));
 });
 
 test("find all tree instances excluding slot descendants", () => {
-  const instances: Instances = new Map([
-    createInstancePair("root", "Body", [
+  const instances: Instances = toMap([
+    createInstance("root", "Body", [
       { type: "id", value: "box1" },
       { type: "id", value: "box2" },
     ]),
     // this is outside of subtree
-    createInstancePair("outside", "Box", []),
+    createInstance("outside", "Box", []),
     // these should be matched
-    createInstancePair("box1", "Box", [
+    createInstance("box1", "Box", [
       { type: "id", value: "slot11" },
       { type: "id", value: "box12" },
     ]),
-    createInstancePair("slot11", "Slot", [
+    createInstance("slot11", "Slot", [
       { type: "id", value: "box111" },
       { type: "id", value: "box112" },
     ]),
-    createInstancePair("box12", "Box", []),
-    createInstancePair("box2", "Box", []),
+    createInstance("box12", "Box", []),
+    createInstance("box2", "Box", []),
   ]);
   expect(
     findTreeInstanceIdsExcludingSlotDescendants(instances, "box1")
   ).toEqual(new Set(["box1", "box12", "slot11"]));
+});
+
+test("find all fragment instances", () => {
+  const instances: Instances = toMap([
+    createInstance("body", "Body", [
+      { type: "id", value: "box" },
+      { type: "id", value: "slot1" },
+    ]),
+    createInstance("box", "Box", []),
+    createInstance("slot1", "Slot", [{ type: "id", value: "fragment1" }]),
+    createInstance("fragment1", "Fragment", [{ type: "id", value: "slot2" }]),
+    createInstance("slot2", "Slot", [{ type: "id", value: "fragment2" }]),
+    createInstance("fragment2", "Fragment", []),
+  ]);
+  expect(findFragmentInstanceIds(instances, "body")).toEqual(
+    new Set(["fragment1", "fragment2"])
+  );
 });
 
 test("extract short name and namespace from component name", () => {

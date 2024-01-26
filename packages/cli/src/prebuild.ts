@@ -8,6 +8,7 @@ import {
   readFile,
   writeFile,
   readdir,
+  mkdir,
 } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { cwd } from "node:process";
@@ -39,10 +40,12 @@ import type {
   FontAsset,
   ImageAsset,
   Resource,
+  Scope,
 } from "@webstudio-is/sdk";
 import {
   createScope,
   findTreeInstanceIds,
+  findTreeInstanceIdsExcludingSlotDescendants,
   getPagePath,
   parseComponentName,
 } from "@webstudio-is/sdk";
@@ -60,6 +63,7 @@ import {
 } from "./fs-utils";
 import type * as sharedConstants from "~/constants.mjs";
 import type { PageData } from "../templates/defaults/__templates__/route-template";
+import { kebabCase } from "change-case";
 
 const limit = pLimit(10);
 
@@ -194,6 +198,52 @@ const copyTemplates = async (template: string = "defaults") => {
       join(templatePath, "package.json"),
       join(cwd(), "package.json")
     );
+  }
+};
+
+const generateComponentImports = (
+  scope: Scope,
+  usedComponents: Set<Instance["component"]>
+) => {
+  const namespaces = new Map<
+    string,
+    Set<[shortName: string, componentName: string]>
+  >();
+  const BASE_NAMESPACE = "@webstudio-is/sdk-components-react";
+  const REMIX_NAMESPACE = "@webstudio-is/sdk-components-react-remix";
+
+  for (const component of usedComponents) {
+    const parsed = parseComponentName(component);
+    let [namespace] = parsed;
+    const [_namespace, shortName] = parsed;
+
+    if (namespace === undefined) {
+      // use base as fallback namespace and consider remix overrides
+      if (shortName in remixComponentMetas) {
+        namespace = REMIX_NAMESPACE;
+      } else {
+        namespace = BASE_NAMESPACE;
+      }
+    }
+
+    if (namespaces.has(namespace) === false) {
+      namespaces.set(
+        namespace,
+        new Set<[shortName: string, componentName: string]>()
+      );
+    }
+    namespaces.get(namespace)?.add([shortName, component]);
+  }
+
+  let componentImports = "";
+  for (const [namespace, componentsSet] of namespaces.entries()) {
+    const specifiers = Array.from(componentsSet)
+      .map(
+        ([shortName, component]) =>
+          `${shortName} as ${scope.getName(component, shortName)}`
+      )
+      .join(", ");
+    componentImports += `import { ${specifiers} } from "${namespace}";\n`;
   }
 };
 
@@ -428,6 +478,67 @@ export const prebuild = async (options: {
 
   await ensureFileInPath(join(generatedDir, "index.css"), cssText);
 
+  spinner.text = "Generating components";
+
+  // reseve Fragment name for react
+  const projectScope = createScope(["Fragment"]);
+  const instances = new Map(siteData.build.instances);
+  const props = new Map(siteData.build.props);
+  const dataSources = new Map(siteData.build.dataSources);
+  for (const root of instances.values()) {
+    if (root.component !== "Fragment") {
+      continue;
+    }
+    const componentVariable = projectScope.getName(root.id, root.component);
+    const scope = createScope(
+      ["useState", "Fragment", "useResource"],
+      projectScope
+    );
+    const instanceIds = findTreeInstanceIdsExcludingSlotDescendants(
+      instances,
+      root.id
+    );
+    const usedComponents = new Set<Instance["component"]>();
+    for (const instanceId of instanceIds) {
+      const instance = instances.get(instanceId);
+      if (instance) {
+        usedComponents.add(instance.component);
+      }
+    }
+    const componentImports = generateComponentImports(scope, usedComponents);
+    const component = generateWebstudioComponent({
+      scope,
+      name: componentVariable,
+      rootInstanceId: root.id,
+      parameters: [],
+      instances,
+      props,
+      dataSources,
+      classesMap,
+      indexesWithinAncestors: getIndexesWithinAncestors(
+        projectMetas,
+        instances,
+        [root.id]
+      ),
+    });
+    const content = `/* eslint-disable */
+/* This is a auto generated file for building the project */\n
+import { Fragment, useState } from "react";
+import { useResource } from "@webstudio-is/react-sdk";
+${componentImports}
+
+${component}
+
+export { ${componentVariable} }
+`;
+    const componentsDir = join(generatedDir, "components");
+    await mkdir(componentsDir, { recursive: true });
+    await writeFile(
+      join(componentsDir, kebabCase(componentVariable) + ".tsx"),
+      content
+    );
+  }
+
   spinner.text = "Generating routes and pages";
 
   const routeTemplatePath = normalize(
@@ -454,46 +565,8 @@ export const prebuild = async (options: {
       "Page",
       "_props",
     ]);
-    const namespaces = new Map<
-      string,
-      Set<[shortName: string, componentName: string]>
-    >();
-    const BASE_NAMESPACE = "@webstudio-is/sdk-components-react";
-    const REMIX_NAMESPACE = "@webstudio-is/sdk-components-react-remix";
 
-    for (const component of pageComponents) {
-      const parsed = parseComponentName(component);
-      let [namespace] = parsed;
-      const [_namespace, shortName] = parsed;
-
-      if (namespace === undefined) {
-        // use base as fallback namespace and consider remix overrides
-        if (shortName in remixComponentMetas) {
-          namespace = REMIX_NAMESPACE;
-        } else {
-          namespace = BASE_NAMESPACE;
-        }
-      }
-
-      if (namespaces.has(namespace) === false) {
-        namespaces.set(
-          namespace,
-          new Set<[shortName: string, componentName: string]>()
-        );
-      }
-      namespaces.get(namespace)?.add([shortName, component]);
-    }
-
-    let componentImports = "";
-    for (const [namespace, componentsSet] of namespaces.entries()) {
-      const specifiers = Array.from(componentsSet)
-        .map(
-          ([shortName, component]) =>
-            `${shortName} as ${scope.getName(component, shortName)}`
-        )
-        .join(", ");
-      componentImports += `import { ${specifiers} } from "${namespace}";\n`;
-    }
+    const componentImports = generateComponentImports(scope, pageComponents);
 
     const pageData = siteDataByPage[pageId];
     // serialize data only used in runtime
@@ -573,10 +646,10 @@ ${utilsExport}
       The _index is mandatory.
       Let's say there is a route /test.one.tsx and then there is a /test.tsx route.
       Remix doesn't pick the /test.tsx by default unless we mention the _index at the end.
-
+ 
       Or else it picks the first route that matches the /test as a layout and not a independent route.
       So, we need to mark the pages as _index at the end. So deep nested routes works as expected.
-
+ 
       Details:
       https://remix.run/docs/en/main/file-conventions/route-files-v2#nested-urls-without-layout-nesting
     */

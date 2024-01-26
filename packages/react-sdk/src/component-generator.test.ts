@@ -17,6 +17,9 @@ import {
 const clear = (input: string) =>
   stripIndent(input).trimStart().replace(/ +$/, "");
 
+const toMap = <T extends { id: string }>(list: T[]) =>
+  new Map(list.map((item) => [item.id, item]));
+
 const createInstance = (
   id: Instance["id"],
   component: string,
@@ -603,6 +606,7 @@ test("generate component with variables and actions", () => {
         createDataSourcePair({
           type: "variable",
           id: "variableId",
+          scopeInstanceId: "input",
           name: "variableName",
           value: { type: "string", value: "initial" },
         }),
@@ -849,6 +853,67 @@ test("generate resources loading", () => {
     data-ws-component="Body"
     data-data={data}
     data-resource={data_1} />
+    }
+    `)
+  );
+});
+
+test("generate slots as separate components", () => {
+  expect(
+    generateWebstudioComponent({
+      classesMap: new Map(),
+      // reserve for react fragment
+      scope: createScope(["Fragment"]),
+      name: "Page",
+      rootInstanceId: "body",
+      parameters: [],
+      instances: toMap([
+        createInstance("body", "Body", [{ type: "id", value: "slot" }]),
+        createInstance("slot", "Slot", [{ type: "id", value: "fragment" }]),
+        createInstance("fragment", "Fragment", [{ type: "id", value: "box" }]),
+        createInstance("box", "Box", []),
+      ]),
+      dataSources: toMap([
+        {
+          id: "variableId",
+          scopeInstanceId: "box",
+          type: "variable",
+          name: "data",
+          value: { type: "string", value: "variable" },
+        },
+      ]),
+      props: toMap<Prop>([
+        {
+          id: "propId",
+          instanceId: "box",
+          name: "data-value",
+          type: "expression",
+          value: "$ws$dataSource$variableId",
+        },
+        {
+          id: "actionId",
+          instanceId: "box",
+          name: "data-action",
+          type: "action",
+          value: [
+            {
+              type: "execute",
+              args: [],
+              code: `$ws$dataSource$variableId = "action"`,
+            },
+          ],
+        },
+      ]),
+      indexesWithinAncestors: new Map(),
+    })
+  ).toEqual(
+    clear(`
+    const Page = () => {
+    return <Body
+    data-ws-id="body"
+    data-ws-component="Body">
+    <Fragment_1 />
+    </Body>
     }
     `)
   );

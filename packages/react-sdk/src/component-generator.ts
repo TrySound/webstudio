@@ -7,19 +7,22 @@ import type {
   Prop,
   DataSource,
 } from "@webstudio-is/sdk";
-import { parseComponentName } from "@webstudio-is/sdk";
+import {
+  findTreeInstanceIdsExcludingSlotDescendants,
+  parseComponentName,
+} from "@webstudio-is/sdk";
 import {
   componentAttribute,
   idAttribute,
   indexAttribute,
   showAttribute,
 } from "./props";
-import { collectionComponent } from "./core-components";
 import {
   generateExpression,
   validateExpression,
   decodeDataSourceVariable,
 } from "./expression";
+import { collectionComponent, portalComponent } from "./core-components";
 import type { IndexesWithinAncestors } from "./instance-utils";
 
 /**
@@ -228,6 +231,13 @@ export const generateJsxElement = ({
     generatedElement += children;
     generatedElement += `</Fragment>\n`;
     generatedElement += `)}\n`;
+  } else if (instance.component === portalComponent) {
+    // ignore slot component
+    generatedElement += children;
+  } else if (instance.component === "Fragment") {
+    // move fragment component children into separate react component
+    const componentVariable = scope.getName(instance.id, instance.component);
+    generatedElement += `<${componentVariable} />\n`;
   } else {
     const [_namespace, shortName] = parseComponentName(instance.component);
     const componentVariable = scope.getName(instance.component, shortName);
@@ -357,8 +367,19 @@ export const generateWebstudioComponent = ({
     generatedProps = `${generatedPropsValue}: ${generatedPropsType}`;
   }
 
+  const instanceIds = findTreeInstanceIdsExcludingSlotDescendants(
+    instances,
+    rootInstanceId
+  );
   let generatedDataSources = "";
   for (const dataSource of dataSources.values()) {
+    // ignore data sources from slots content
+    if (
+      dataSource.scopeInstanceId === undefined ||
+      instanceIds.has(dataSource.scopeInstanceId) === false
+    ) {
+      continue;
+    }
     if (dataSource.type === "variable") {
       const valueName = scope.getName(dataSource.id, dataSource.name);
       const setterName = scope.getName(

@@ -45,6 +45,19 @@ export const findTreeInstanceIdsExcludingSlotDescendants = (
   return ids;
 };
 
+export const findFragmentInstanceIds = (
+  instances: Instances,
+  rootInstanceId: Instance["id"]
+) => {
+  const ids = new Set<Instance["id"]>();
+  traverseInstances(instances, rootInstanceId, (instance) => {
+    if (instance.component === "Fragment") {
+      ids.add(instance.id);
+    }
+  });
+  return ids;
+};
+
 export const parseComponentName = (componentName: string) => {
   const parts = componentName.split(":");
   let namespace: undefined | string;
