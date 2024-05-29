@@ -62,6 +62,7 @@ import { updateCollaborativeInstanceRect } from "./collaborative-instance";
 import { $params } from "./stores";
 import { useScrollNewInstanceIntoView } from "./shared/use-scroll-new-instance-into-view";
 import { subscribeInspectorEdits } from "./inspector-edits";
+import { connectPlugin } from "~/shared/app-sync";
 
 registerContainers();
 
@@ -140,11 +141,13 @@ const DesignMode = () => {
 };
 
 type CanvasProps = {
+  projectId: string;
   params: Params;
   imageLoader: ImageLoader;
 };
 
-export const Canvas = ({ params, imageLoader }: CanvasProps) => {
+export const Canvas = ({ projectId, params, imageLoader }: CanvasProps) => {
+  useEffect(() => connectPlugin(projectId), [projectId]);
   useCanvasStore(publish);
   const isPreviewMode = useStore($isPreviewMode);
 

@@ -127,6 +127,22 @@ export const getWebstudioData = (): WebstudioData => {
   };
 };
 
+export const setWebstudioData = (data: WebstudioData) => {
+  $assets.set(data.assets);
+  $instances.set(data.instances);
+  $dataSources.set(data.dataSources);
+  $resources.set(data.resources);
+  // props should be after data sources to compute logic
+  $props.set(data.props);
+  $pages.set(data.pages);
+  $styleSources.set(data.styleSources);
+  $styleSourceSelections.set(data.styleSourceSelections);
+  $breakpoints.set(data.breakpoints);
+  $styles.set(data.styles);
+  // $todo
+  // $marketplaceProduct.set(data.marketplaceProduct);
+};
+
 const getLabelFromComponentName = (component: Instance["component"]) => {
   if (component.includes(":")) {
     // strip namespace

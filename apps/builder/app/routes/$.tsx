@@ -31,12 +31,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(dashboardPath());
   }
 
+  const projectId = url.searchParams.get("projectId");
+  if (projectId === null) {
+    throw Error("Unknown project");
+  }
+
   const params: Params = {
     imageBaseUrl: env.IMAGE_BASE_URL,
     assetBaseUrl: env.ASSET_BASE_URL,
   };
 
-  return { params };
+  return { projectId, params };
 };
 
 export const ErrorBoundary = () => {
@@ -58,13 +63,13 @@ const Canvas = lazy(async () => {
 });
 
 const Outlet = () => {
-  const { params } = useLoaderData<typeof loader>();
+  const { projectId, params } = useLoaderData<typeof loader>();
   const imageLoader = createImageLoader({
     imageBaseUrl: params.imageBaseUrl,
   });
   return (
     <ClientOnly fallback={<Body />}>
-      <Canvas params={params} imageLoader={imageLoader} />
+      <Canvas projectId={projectId} params={params} imageLoader={imageLoader} />
     </ClientOnly>
   );
 };
