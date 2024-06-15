@@ -1,5 +1,7 @@
 import { chdir, cwd } from "node:process";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
+import { text as textFromStream } from "node:stream/consumers";
 import pc from "picocolors";
 import {
   cancel,
@@ -10,7 +12,6 @@ import {
   spinner,
   text,
 } from "@clack/prompts";
-import { $ } from "execa";
 import { titleCase } from "title-case";
 import { createFolderIfNotExists, isFileExists } from "../fs-utils";
 import { PROJECT_TEMPALTES } from "../config";
@@ -116,7 +117,14 @@ export const initFlow = async (
   if (shouldInstallDeps === true) {
     const install = spinner();
     install.start("Installing dependencies");
-    await $`npm install`;
+    const child = spawn("npm", ["install"], { shell: true });
+    const error = await textFromStream(child.stderr);
+    await new Promise((resolve) => child.on("exit", resolve));
+    if (child.exitCode !== 0) {
+      install.stop("Could not install dependencies", 1);
+      log.error(error);
+      return;
+    }
     install.stop("Installed dependencies");
   }
 
