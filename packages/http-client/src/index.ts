@@ -40,28 +40,19 @@ export type Data = {
 export const loadProjectDataByProjectId = async (params: {
   projectId: string;
   origin: string;
-  authToken?: string;
-}): Promise<Data> => {
+  authToken: string;
+}) => {
   const result = await getLatestBuildUsingProjectId(params);
   if (result.buildId === null) {
     throw new Error(`The project is not published yet`);
   }
 
-  const url = new URL(params.origin);
-  url.pathname = `/rest/build/${result.buildId}`;
-
-  if (params.authToken) {
-    url.searchParams.append("authToken", params.authToken);
-  }
-
-  const response = await fetch(url.href);
-
-  if (response.ok) {
-    return await response.json();
-  }
-
-  const message = await response.text();
-  throw new Error(message.slice(0, 1000));
+  const data = await loadProjectDataByBuildId({
+    buildId: result.buildId,
+    origin: params.origin,
+    authToken: params.authToken,
+  });
+  return data;
 };
 
 export const loadProjectDataByBuildId = async (
@@ -69,11 +60,11 @@ export const loadProjectDataByBuildId = async (
     buildId: string;
     origin: string;
   } & (
-    | {
+      | {
         seviceToken: string;
       }
-    | { authToken: string }
-  )
+      | { authToken: string }
+    )
 ): Promise<Data> => {
   const url = new URL(params.origin);
   url.pathname = `/rest/build/${params.buildId}`;
