@@ -41,7 +41,12 @@ import type { SectionProps } from "../shared/section";
 import { FlexGrid } from "./shared/flex-grid";
 import { MenuControl, SelectControl } from "../../controls";
 import { styleConfigByName } from "../../shared/configs";
-import type { CreateBatchUpdate } from "../../shared/use-style-data";
+import {
+  createBatchUpdate,
+  deleteProperty,
+  setProperty,
+  type CreateBatchUpdate,
+} from "../../shared/use-style-data";
 import { getStyleSource, type StyleInfo } from "../../shared/style-info";
 import { CollapsibleSection } from "../../shared/collapsible-section";
 import {
@@ -53,6 +58,7 @@ import { TooltipContent } from "../../../style-panel/shared/property-name";
 import { isFeatureEnabled } from "@webstudio-is/feature-flags";
 import { ToggleControl } from "../../controls/toggle/toggle-control";
 import { PropertyLabel } from "../../property-label";
+import { useComputedStyleDecl } from "../../shared/model";
 
 const GapLinked = ({
   isLinked,
@@ -308,22 +314,18 @@ const FlexGap = ({
 
 const LayoutSectionFlex = ({
   currentStyle,
-  deleteProperty,
-  createBatchUpdate,
 }: {
   currentStyle: SectionProps["currentStyle"];
-  deleteProperty: SectionProps["deleteProperty"];
-  createBatchUpdate: SectionProps["createBatchUpdate"];
 }) => {
   const batchUpdate = createBatchUpdate();
 
-  const flexWrapValue = currentStyle.flexWrap?.value;
+  const flexWrap = useComputedStyleDecl("flexWrap");
+  const flexWrapValue = toValue(flexWrap.usedValue);
 
   // From design: Notice that the align-content icon button is not visible by default.
   // This property only applies when flex-wrap is set to "wrap".
   const showAlignContent =
-    flexWrapValue?.type === "keyword" &&
-    (flexWrapValue.value === "wrap" || flexWrapValue.value === "wrap-reverse");
+    flexWrapValue === "wrap" || flexWrapValue === "wrap-reverse";
 
   return (
     <Flex css={{ flexDirection: "column", gap: theme.spacing[5] }}>
@@ -449,13 +451,9 @@ export const properties = [
   "columnGap",
 ] satisfies Array<StyleProperty>;
 
-export const Section = ({
-  currentStyle,
-  setProperty,
-  deleteProperty,
-  createBatchUpdate,
-}: SectionProps) => {
-  const value = toValue(currentStyle.display?.value);
+export const Section = ({ currentStyle }: SectionProps) => {
+  const display = useComputedStyleDecl("display");
+  const displayValue = toValue(display.usedValue);
 
   const { items } = styleConfigByName("display");
   return (
@@ -488,12 +486,8 @@ export const Section = ({
           />
         </Grid>
 
-        {(value === "flex" || value === "inline-flex") && (
-          <LayoutSectionFlex
-            currentStyle={currentStyle}
-            deleteProperty={deleteProperty}
-            createBatchUpdate={createBatchUpdate}
-          />
+        {(displayValue === "flex" || displayValue === "inline-flex") && (
+          <LayoutSectionFlex currentStyle={currentStyle} />
         )}
       </Flex>
     </CollapsibleSection>

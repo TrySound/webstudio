@@ -1,6 +1,6 @@
 import { computed } from "nanostores";
 import { useStore } from "@nanostores/react";
-import { compareMedia, type StyleValue } from "@webstudio-is/css-engine";
+import { compareMedia, type StyleProperty, type StyleValue } from "@webstudio-is/css-engine";
 import type { Breakpoint, Instance } from "@webstudio-is/sdk";
 import {
   $breakpoints,
@@ -125,7 +125,7 @@ export const useStyleObjectModel = () => {
   return useStore($model);
 };
 
-export const useComputedStyleDecl = (property: string) => {
+export const useComputedStyleDecl = (property: StyleProperty) => {
   const $store = useMemo(
     () => createComputedStyleDeclStore(property),
     [property]
