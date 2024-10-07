@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FontFormat, FontMeta } from "@webstudio-is/fonts";
+import { FontMeta } from "@webstudio-is/fonts";
 
 const AssetId = z.string();
 
@@ -14,7 +14,7 @@ const baseAsset = {
 
 export const FontAsset = z.object({
   ...baseAsset,
-  format: FontFormat,
+  format: z.string(),
   meta: FontMeta,
   type: z.literal("font"),
 });

@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { FONT_STYLES } from "./constants";
 
-export const FontFormat = z.union([
-  z.literal("ttf"),
-  z.literal("woff"),
-  z.literal("woff2"),
-]);
-export type FontFormat = z.infer<typeof FontFormat>;
-
 const AxisName = z.enum([
   "wght",
   "wdth",

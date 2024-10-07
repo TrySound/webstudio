@@ -2,7 +2,6 @@ import { create as createFontKit } from "fontkit";
 import {
   fontWeights,
   FONT_STYLES,
-  type FontFormat,
   type FontWeight,
   type VariationAxes,
   type FontStyle,
@@ -64,13 +63,13 @@ const normalizeFamily = (
 };
 
 type FontDataStatic = {
-  format: FontFormat;
+  format: string;
   family: string;
   style: FontStyle;
   weight: number;
 };
 type FontDataVariable = {
-  format: FontFormat;
+  format: string;
   family: string;
   variationAxes: VariationAxes;
 };
@@ -81,7 +80,7 @@ export const getFontData = (data: Uint8Array, fileName: string): FontData => {
   if (font.type !== "TTF" && font.type !== "WOFF" && font.type !== "WOFF2") {
     throw Error(`Unsupported font type ${font.type}`);
   }
-  const format = font.type.toLowerCase() as FontData["format"];
+  const format = font.type.toLowerCase();
   const originalFamily = font.getName("fontFamily", defaultLanguage) ?? "";
   const subfamily =
     font.getName("preferredSubfamily", defaultLanguage) ??

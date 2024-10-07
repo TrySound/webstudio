@@ -1,4 +1,4 @@
-import { type FontFormat, FontMeta, FONT_FORMATS } from "@webstudio-is/fonts";
+import { FontMeta, FONT_FORMATS } from "@webstudio-is/fonts";
 import { type Asset, ImageMeta } from "@webstudio-is/sdk";
 
 export const formatAsset = ({
@@ -17,7 +17,7 @@ export const formatAsset = ({
     meta: string;
   };
 }): Asset => {
-  const isFont = FONT_FORMATS.has(file.format as FontFormat);
+  const isFont = FONT_FORMATS.has(file.format);
 
   if (isFont) {
     return {
@@ -28,7 +28,7 @@ export const formatAsset = ({
       size: file.size,
       type: "font",
       createdAt: file.createdAt,
-      format: file.format as FontFormat,
+      format: file.format,
       meta: FontMeta.parse(JSON.parse(file.meta)),
     };
   }

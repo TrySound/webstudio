@@ -1,6 +1,9 @@
-import type { FontFormat } from "./schema";
+type FontStack = {
+  stack: string[];
+  description: string;
+};
 
-export const SYSTEM_FONTS = new Map([
+export const SYSTEM_FONTS: Map<string, FontStack> = new Map([
   [
     "System UI",
     {
@@ -259,15 +262,11 @@ export const SYSTEM_FONTS = new Map([
 
 export const DEFAULT_FONT_FALLBACK = "sans-serif";
 
-export const FONT_FORMATS: Map<FontFormat, string> = new Map([
+export const FONT_FORMATS: Map<string, string> = new Map([
   ["woff", "woff"],
   ["woff2", "woff2"],
   ["ttf", "truetype"],
 ]);
-
-export const FONT_MIME_TYPES = Array.from(FONT_FORMATS.keys())
-  .map((format) => `.${format}`)
-  .join(", ");
 
 export const FONT_STYLES = ["normal", "italic", "oblique"] as const;
 export type FontStyle = (typeof FONT_STYLES)[number];
