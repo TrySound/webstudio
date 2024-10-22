@@ -1,7 +1,8 @@
+import { nanoid } from "nanoid";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useStore } from "@nanostores/react";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
-import { usePublish, $publisher } from "~/shared/pubsub";
+import { initPubSub, publish } from "~/shared/pubsub";
 import type { Build } from "@webstudio-is/project-build";
 import type { Project } from "@webstudio-is/project";
 import { theme, Box, type CSS, Flex, Grid } from "@webstudio-is/design-system";
@@ -56,7 +57,6 @@ import { initBuilderApi } from "~/shared/builder-api";
 import { updateWebstudioData } from "~/shared/instance-utils";
 import { migrateWebstudioDataMutable } from "~/shared/webstudio-data-migrator";
 import { Loading, LoadingBackground } from "./shared/loading";
-import { mergeRefs } from "@react-aria/utils";
 import { initCopyPaste } from "~/shared/copy-paste";
 
 registerContainers();
@@ -207,6 +207,8 @@ export type BuilderProps = {
   userPlanFeatures: UserPlanFeatures;
 };
 
+const tabId = nanoid();
+
 export const Builder = ({
   project,
   publisherHost,
@@ -220,6 +222,8 @@ export const Builder = ({
   useMount(initBuilderApi);
 
   useMount(() => {
+    initPubSub({ scopeId: tabId });
+
     // additional data stores
     $project.set(project);
     $publisherHost.set(publisherHost);
@@ -272,11 +276,6 @@ export const Builder = ({
 
   useSyncPageUrl();
 
-  const [publish, publishRef] = usePublish();
-  useEffect(() => {
-    $publisher.set({ publish });
-  }, [publish]);
-
   useBuilderStore(publish);
   useSyncServer({
     projectId: project.id,
@@ -287,10 +286,6 @@ export const Builder = ({
   const { onRef: onRefReadCanvas, onTransitionEnd } = useReadCanvasRect();
 
   useSetWindowTitle();
-
-  const iframeRefCallback = mergeRefs((element: HTMLIFrameElement | null) => {
-    onRefReadCanvas(element);
-  }, publishRef);
 
   const { navigatorLayout } = useStore($settings);
   const dataLoadingState = useStore($dataLoadingState);
@@ -317,7 +312,7 @@ export const Builder = ({
     };
   }, []);
 
-  const canvasUrl = getCanvasUrl();
+  const canvasUrl = getCanvasUrl({ scopeId: tabId });
 
   /**
    * Prevents Lexical text editor from stealing focus during rendering.
@@ -396,7 +391,7 @@ export const Builder = ({
             <Workspace onTransitionEnd={onTransitionEnd}>
               {dataLoadingState === "loaded" && (
                 <CanvasIframe
-                  ref={iframeRefCallback}
+                  ref={onRefReadCanvas}
                   src={canvasUrl}
                   title={project.title}
                 />

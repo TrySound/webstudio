@@ -20,7 +20,7 @@ import {
 } from "~/shared/instance-utils";
 import type { InstanceSelector } from "~/shared/tree-utils";
 import { serverSyncStore } from "~/shared/sync";
-import { $publisher } from "~/shared/pubsub";
+import { publish } from "~/shared/pubsub";
 import {
   $activeInspectorPanel,
   setActiveSidebarPanel,
@@ -103,8 +103,7 @@ export const { emitCommand, subscribeCommands } = createCommandsEmitter({
       // radix check event.defaultPrevented before invoking callbacks
       preventDefault: false,
       handler: () => {
-        const { publish } = $publisher.get();
-        publish?.({ type: "cancelCurrentDrag" });
+        publish({ type: "cancelCurrentDrag" });
       },
     },
     {

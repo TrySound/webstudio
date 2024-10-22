@@ -133,8 +133,8 @@ export const restPatchPath = () => {
   }`;
 };
 
-export const getCanvasUrl = () => {
-  return `/canvas`;
+export const getCanvasUrl = ({ scopeId }: { scopeId: string }) => {
+  return `/canvas?scopeid=${scopeId}`;
 };
 
 export const restAi = (subEndpoint?: "detect" | "audio/transcriptions") =>

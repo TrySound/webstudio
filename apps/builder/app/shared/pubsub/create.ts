@@ -1,8 +1,7 @@
 import { createNanoEvents } from "nanoevents";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { batchUpdate } from "./raf-queue";
 import { useEffectEvent } from "../hook-utils/effect-event";
-import invariant from "tiny-invariant";
 
 const apiTokenKey = "__webstudio__$__api_token";
 
@@ -26,11 +25,11 @@ export const createPubsub = <PublishMap>() => {
 
   if (typeof window === "undefined") {
     return {
+      initPubSub() {
+        throw new Error("initPubSub is not available in this environment");
+      },
       publish: () => {
         throw new Error("publish is not available in this environment");
-      },
-      usePublish: () => {
-        throw new Error("usePublish is not available in this environment");
       },
       useSubscribe: () => {
         throw new Error("useSubscribe is not available in this environment");
@@ -40,12 +39,6 @@ export const createPubsub = <PublishMap>() => {
       },
     } as never; // Prevent type exposure
   }
-
-  /**
-   * To avoid postMessage interception from the canvas, i.e., `globalThis.postMessage = () => console.log('INTERCEPTED');`,
-   */
-  const postMessageInternal = window.postMessage;
-  const parentPostMessageInternal = window.parent.postMessage;
 
   /**
    * Similar to a CSRF token, we use a token to ensure that the postMessage is coming from a trusted source.
@@ -93,68 +86,37 @@ export const createPubsub = <PublishMap>() => {
     return payload.action as Action<keyof PublishMap>;
   };
 
-  const handleMessage = (event: MessageEvent) => {
-    const action = unwrapAction(event.data);
-    const type = action.type;
-    // Execute all updates within a single batch to improve performance
-    batchUpdate(() => emitter.emit(type, action.payload));
-  };
-
-  window.addEventListener("message", handleMessage, false);
+  let channel: undefined | BroadcastChannel;
 
   return {
+    initPubSub({ scopeId }: { scopeId: string }) {
+      // initialize only once because after closing
+      // broadcast channel no longer receive events.
+      if (channel) {
+        return;
+      }
+      channel = new BroadcastChannel(scopeId);
+      channel.addEventListener("message", (event) => {
+        const action = unwrapAction(event.data);
+        const type = action.type;
+        // Execute all updates within a single batch to improve performance
+        batchUpdate(() => {
+          // console.log("external", type, action.payload);
+          emitter.emit(type, action.payload);
+        });
+      });
+    },
+
     /**
      * To publish a postMessage event on the current window and parent window from the iframe.
      */
     publish<Type extends keyof PublishMap>(action: Action<Type>) {
-      invariant(
-        window.self !== window.top,
-        "publish is not available in the Builder environment"
-      );
-
-      parentPostMessageInternal(wrapAction(action), "*");
-      postMessageInternal(wrapAction(action), "*");
-    },
-
-    /**
-     * To publish a postMessage event on the iframe and parent window from the parent window.
-     */
-    usePublish() {
-      const postMessageRef = useRef<typeof window.postMessage>();
-
-      const iframeRefCallback = useCallback(
-        (element: HTMLIFrameElement | null) => {
-          if (element == null) {
-            postMessageRef.current = undefined;
-            return;
-          }
-          /**
-           * To avoid postMessage interception from the canvas, i.e., `globalThis.postMessage = () => console.log('INTERCEPTED');`,
-           */
-          postMessageRef.current = element.contentWindow!.postMessage;
-        },
-        []
-      );
-
-      const publish = useCallback(
-        <Type extends keyof PublishMap>(action: Action<Type>) => {
-          invariant(
-            window.self === window.top,
-            "publish is not available in the Canvas environment"
-          );
-
-          if (postMessageRef.current === undefined) {
-            return;
-          }
-          // This ensures the method is called with the correct context.
-          const postMessageIframe = postMessageRef.current;
-
-          postMessageIframe(wrapAction(action), "*");
-          postMessageInternal(wrapAction(action), "*");
-        },
-        []
-      );
-      return [publish, iframeRefCallback] as const;
+      console.log(channel, wrapAction(action));
+      channel?.postMessage(wrapAction(action));
+      batchUpdate(() => {
+        // console.log("internal", action.type, action.payload);
+        emitter.emit(action.type, action.payload);
+      });
     },
 
     /**

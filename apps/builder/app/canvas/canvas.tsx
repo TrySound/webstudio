@@ -21,7 +21,7 @@ import * as radixComponentMetas from "@webstudio-is/sdk-components-react-radix/m
 import * as radixComponentPropsMetas from "@webstudio-is/sdk-components-react-radix/props";
 import { hooks as radixComponentHooks } from "@webstudio-is/sdk-components-react-radix/hooks";
 import { ErrorMessage } from "~/shared/error";
-import { $publisher, publish } from "~/shared/pubsub";
+import { initPubSub, publish } from "~/shared/pubsub";
 import {
   registerContainers,
   serverSyncStore,
@@ -177,6 +177,15 @@ type CanvasProps = {
 };
 
 export const Canvas = ({ params, imageLoader }: CanvasProps) => {
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const scopeId = searchParams.get("scopeid");
+    if (scopeId === null) {
+      throw Error("Scope id is not defined");
+    }
+    initPubSub({ scopeId });
+  }, []);
+
   useCanvasStore(publish);
   const isPreviewMode = useStore($isPreviewMode);
 
@@ -222,10 +231,6 @@ export const Canvas = ({ params, imageLoader }: CanvasProps) => {
   useEffect(subscribeComponentHooks, []);
 
   useEffect(subscribeCommands, []);
-
-  useEffect(() => {
-    $publisher.set({ publish });
-  }, []);
 
   const selectedPage = useStore($selectedPage);
 
