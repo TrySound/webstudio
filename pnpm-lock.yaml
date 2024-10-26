@@ -1211,6 +1211,9 @@ importers:
       '@types/node':
         specifier: ^22.6.1
         version: 22.6.1
+      '@webref/css':
+        specifier: ^6.17.0
+        version: 6.17.0(css-tree@2.3.1(patch_hash=epgcmebti7rfrc2ej4odb3t4jy))
       '@webstudio-is/jest-config':
         specifier: workspace:*
         version: link:../jest-config
@@ -5409,6 +5412,11 @@ packages:
 
   '@web3-storage/multipart-parser@1.0.0':
     resolution: {integrity: sha512-BEO6al7BYqcnfX15W2cnGR+Q566ACXAT9UQykORCWW80lmkpWsnEob6zJS1ZVBKsSJC8+7vJkHwlp+lXG1UCdw==}
+
+  '@webref/css@6.17.0':
+    resolution: {integrity: sha512-5flhd3Wuokf9gNKhFmJ+SlG4tb2+qCXXBB3jo0RG7i9LuigYaZxJd0FqyNsVtTqJwSEXHt9AshTjN82ESr5k6g==}
+    peerDependencies:
+      css-tree: ^2.3.1
 
   '@zxing/text-encoding@0.9.0':
     resolution: {integrity: sha512-U/4aVJ2mxI0aDNI8Uq0wEhMgY+u4CNtEb0om3+y3+niDAsoTCOB33UF0sxpzqzdqXLqmvc+vZyAt4O8pPdfkwA==}
@@ -13171,6 +13179,10 @@ snapshots:
   '@vue/shared@3.3.4': {}
 
   '@web3-storage/multipart-parser@1.0.0': {}
+
+  '@webref/css@6.17.0(css-tree@2.3.1(patch_hash=epgcmebti7rfrc2ej4odb3t4jy))':
+    dependencies:
+      css-tree: 2.3.1(patch_hash=epgcmebti7rfrc2ej4odb3t4jy)
 
   '@zxing/text-encoding@0.9.0':
     optional: true

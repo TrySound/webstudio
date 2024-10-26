@@ -12,24 +12,6 @@ const numericTypes = [
   "y",
 ] as const;
 
-export const valueTypes = [
-  ...numericTypes,
-  "hex-color",
-  "url",
-  "string",
-  "custom-ident",
-  "dashed-ident",
-  "single-animation-composition",
-  "palette-identifier",
-  "flex",
-  "inset-area",
-  "offset-path",
-  "coord-box",
-  "anchor-element",
-  "try-tactic",
-  "try-size",
-] as const;
-
 export type UnitGroup = (typeof numericTypes)[number];
 
 // Data type used before we generate a the constants.

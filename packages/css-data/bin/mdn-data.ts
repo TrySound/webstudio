@@ -3,9 +3,9 @@ import { join, dirname } from "node:path";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore @todo add missing type defitions for definitionSyntax, type DSNode, type CssNode
 import { parse, definitionSyntax, type DSNode, type CssNode } from "css-tree";
+import { listAll } from "@webref/css";
 import properties from "mdn-data/css/properties.json";
 import syntaxes from "mdn-data/css/syntaxes.json";
-import selectors from "mdn-data/css/selectors.json";
 import data from "css-tree/dist/data";
 import { camelCase } from "change-case";
 import type {
@@ -17,6 +17,28 @@ import type {
   FontFamilyValue,
 } from "@webstudio-is/css-engine";
 import * as customData from "../src/custom-data";
+
+const webref = await listAll();
+
+const map = new Map();
+for (const [name, data] of Object.entries(webref)) {
+  for (const property of data.properties) {
+    const set = map.get(property.name) ?? new Set();
+    map.set(property.name, set);
+    set.add({ name, property });
+  }
+}
+for (const [propertyName, sections] of map) {
+  if (sections.size > 1) {
+    console.log("property:", propertyName);
+    for (const { name, property } of sections) {
+      console.log("  section:", name);
+      console.log("    syntax", property.value);
+      console.log("    initial", property.initial);
+    }
+    console.log();
+  }
+}
 
 /**
  * Store prefixed properties without change
@@ -34,8 +56,28 @@ const units: Record<customData.UnitGroup, Array<string>> = {
   number: [],
   // consider % as unit
   percentage: ["%"],
-  ...data.units,
+  angle: [],
+  length: [],
+  resolution: [],
+  time: [],
 };
+
+for (const value of webref["css-values"].values) {
+  if (
+    value.type === "type" &&
+    value.value === undefined &&
+    Array.isArray(value.values) &&
+    value.name.startsWith("<") &&
+    value.name.endsWith(">")
+  ) {
+    const group = value.name.slice(1, -1);
+    if (units[group as customData.UnitGroup]) {
+      units[group as customData.UnitGroup] = value.values
+        .map((unit: { name: string }) => unit.name)
+        .sort((left: string, right: string) => left.localeCompare(right));
+    }
+  }
+}
 
 type Property = keyof typeof properties;
 type Value = (typeof properties)[Property];
@@ -295,15 +337,9 @@ const filteredProperties: FilteredProperties = (() => {
   return result;
 })();
 
-const propertiesData = {
-  ...customData.propertiesData,
-};
-
-let property: Property;
-for (property in filteredProperties) {
-  const config = filteredProperties[property];
+const extractUnitGroups = (syntax: string) => {
   const unitGroups = new Set<customData.UnitGroup>();
-  walkSyntax(config.syntax, (node) => {
+  walkSyntax(syntax, (node) => {
     if (node.type === "Type") {
       if (node.name === "integer" || node.name === "number") {
         unitGroups.add("number");
@@ -317,7 +353,44 @@ for (property in filteredProperties) {
       }
     }
   });
+  return unitGroups;
+};
 
+const propertiesData = {
+  ...customData.propertiesData,
+};
+
+/*
+for (const section of Object.values(await listAll())) {
+  for (const property of (section as any).properties) {
+    // skip new specs
+    if (
+      property.newValues ||
+      property.initial === undefined ||
+      property.initial.toLowerCase().includes("n/a")
+    ) {
+      continue;
+    }
+    try {
+      const unitGroups = extractUnitGroups(property.value);
+      propertiesData[normalizePropertyName(property.name)] = {
+        unitGroups: Array.from(unitGroups),
+        inherited: property.inherited === "yes",
+        initial: parseInitialValue(property, property.initial, unitGroups),
+      };
+    } catch (error) {
+      console.log(property.name);
+      console.log(property);
+      console.log(error);
+    }
+  }
+}
+*/
+
+let property: Property;
+for (property in filteredProperties) {
+  const config = filteredProperties[property];
+  const unitGroups = extractUnitGroups(config.syntax);
   if (Array.isArray(config.initial)) {
     throw new Error(
       `Property ${property} contains non string initial value ${config.initial.join(
@@ -325,7 +398,6 @@ for (property in filteredProperties) {
       )}`
     );
   }
-
   propertiesData[normalizePropertyName(property)] = {
     unitGroups: Array.from(unitGroups),
     inherited: config.inherited,
@@ -333,11 +405,18 @@ for (property in filteredProperties) {
   };
 }
 
-const pseudoElements = Object.keys(selectors)
-  .filter((selector) => {
-    return selector.startsWith("::");
-  })
-  .map((selector) => selector.slice(2));
+const pseudoElements: string[] = [];
+for (const data of Object.values(webref)) {
+  for (const selector of data.selectors) {
+    if (
+      selector.name.startsWith("::") &&
+      selector.name.endsWith("()") === false
+    ) {
+      pseudoElements.push(selector.name.slice(2));
+    }
+  }
+}
+pseudoElements.sort((left, right) => left.localeCompare(right));
 
 const targetDir = join(process.cwd(), process.argv.slice(2).pop() as string);
 
