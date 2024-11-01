@@ -10,6 +10,8 @@ import {
   TreeNodeLabel,
   PanelTitle,
   Separator,
+  TreeSortableItem,
+  type TreeDropTarget,
 } from "@webstudio-is/design-system";
 import {
   ChevronRightIcon,
@@ -123,6 +125,8 @@ type PagesTreeItem =
       isExpanded?: boolean;
       type: "page";
       page: Page;
+      isLastChild: boolean;
+      dropTarget?: TreeDropTarget;
     }
   | {
       id: string;
@@ -130,11 +134,20 @@ type PagesTreeItem =
       isExpanded?: boolean;
       type: "folder";
       folder: Folder;
+      isLastChild: boolean;
+      dropTarget?: TreeDropTarget;
     };
 
+type DropTarget = TreeDropTarget & {
+  folderId: string;
+  closestChildIndex: number;
+};
+
+const $dropTarget = atom<undefined | DropTarget>();
+
 const $flatPagesTree = computed(
-  [$pages, $expandedItems],
-  (pagesData, expandedItems) => {
+  [$pages, $expandedItems, $dropTarget],
+  (pagesData, expandedItems, dropTarget) => {
     const flatPagesTree: PagesTreeItem[] = [];
     if (pagesData === undefined) {
       return flatPagesTree;
@@ -144,7 +157,14 @@ const $flatPagesTree = computed(
     );
     const pages = new Map(pagesData.pages.map((page) => [page.id, page]));
     pages.set(pagesData.homePage.id, pagesData.homePage);
-    const traverse = (itemId: string, level = 0) => {
+    const traverse = (
+      itemId: string,
+      level = 0,
+      parentId: undefined | string = undefined,
+      indexWithinChildren = 0,
+      isLastChild = false
+    ) => {
+      let treeItem: undefined | PagesTreeItem;
       const folder = folders.get(itemId);
       const page = pages.get(itemId);
       if (folder) {
@@ -154,22 +174,41 @@ const $flatPagesTree = computed(
         }
         // hide root folder
         if (itemId !== ROOT_FOLDER_ID) {
-          flatPagesTree.push({
+          treeItem = {
             id: itemId,
             level,
             isExpanded,
             type: "folder",
             folder,
-          });
+            isLastChild,
+          };
+          flatPagesTree.push(treeItem);
         }
         if (level === 0 || isExpanded) {
-          for (const childId of folder.children) {
-            traverse(childId, level + 1);
+          for (let index = 0; index < folder.children.length; index += 1) {
+            const childId = folder.children[index];
+            const isLastChild = index === folder.children.length - 1;
+            traverse(childId, level + 1, itemId, index, isLastChild);
           }
         }
       }
       if (page) {
-        flatPagesTree.push({ id: itemId, level, type: "page", page });
+        treeItem = {
+          id: itemId,
+          level,
+          type: "page",
+          page,
+          isLastChild,
+        };
+        flatPagesTree.push(treeItem);
+      }
+
+      if (
+        treeItem &&
+        dropTarget?.folderId === parentId &&
+        dropTarget?.closestChildIndex === indexWithinChildren
+      ) {
+        treeItem.dropTarget = dropTarget;
       }
     };
     traverse(ROOT_FOLDER_ID);
@@ -178,17 +217,11 @@ const $flatPagesTree = computed(
 );
 
 const PagesTree = ({
-  onClose,
-  onCreateNewFolder,
-  onCreateNewPage,
   onSelect,
   selectedPageId,
   onEdit,
   editingItemId,
 }: {
-  onClose: () => void;
-  onCreateNewFolder: () => void;
-  onCreateNewPage: () => void;
   onSelect: (pageId: string) => void;
   selectedPageId: string;
   onEdit: (pageId: string | undefined) => void;
@@ -203,62 +236,77 @@ const PagesTree = ({
   }
 
   return (
-    <>
-      <PanelTitle
-        suffix={
-          <>
-            <Tooltip content="New folder" side="bottom">
-              <Button
-                onClick={() => onCreateNewFolder()}
-                aria-label="New folder"
-                prefix={<NewFolderIcon />}
-                color="ghost"
-              />
-            </Tooltip>
-            <Tooltip content="New page" side="bottom">
-              <Button
-                onClick={() => onCreateNewPage()}
-                aria-label="New page"
-                prefix={<NewPageIcon />}
-                color="ghost"
-              />
-            </Tooltip>
-            <Tooltip content="Close panel" side="bottom">
-              <Button
-                color="ghost"
-                prefix={<CrossIcon />}
-                aria-label="Close panel"
-                onClick={onClose}
-              />
-            </Tooltip>
-          </>
-        }
-      >
-        Pages
-      </PanelTitle>
-      <Separator />
-
-      <Box css={{ overflowY: "auto", flexBasis: 0, flexGrow: 1 }}>
-        <TreeRoot>
-          {flatPagesTree.map((item, index) => {
-            const handleExpand = (isExpanded: boolean, all: boolean) => {
-              const expandedItems = new Set($expandedItems.get());
-              const items = all
-                ? getAllChildrenAndSelf(item.id, pages.folders, "folder")
-                : [item.id];
-              for (const itemId of items) {
-                if (isExpanded) {
-                  expandedItems.add(itemId);
-                } else {
-                  expandedItems.delete(itemId);
-                }
+    <Box css={{ overflowY: "auto", flexBasis: 0, flexGrow: 1 }}>
+      <TreeRoot>
+        {flatPagesTree.map((item, index) => {
+          const handleExpand = (isExpanded: boolean, all: boolean) => {
+            const expandedItems = new Set($expandedItems.get());
+            const items = all
+              ? getAllChildrenAndSelf(item.id, pages.folders, "folder")
+              : [item.id];
+            for (const itemId of items) {
+              if (isExpanded) {
+                expandedItems.add(itemId);
+              } else {
+                expandedItems.delete(itemId);
               }
-              $expandedItems.set(expandedItems);
-            };
+            }
+            $expandedItems.set(expandedItems);
+          };
 
-            return (
+          return (
+            <TreeSortableItem
+              key={item.id}
+              level={item.level}
+              isExpanded={item.isExpanded}
+              isLastChild={item.isLastChild}
+              data={item}
+              canDrag={() => true}
+              dropTarget={item.dropTarget}
+              onDropTargetChange={(dropTarget, draggingItem) => {
+                /*
+                const builderDropTarget = getBuilderDropTarget(
+                  item.selector,
+                  dropTarget
+                );
+                if (
+                  builderDropTarget &&
+                  canDrop(draggingItem.selector, builderDropTarget.itemSelector)
+                ) {
+                  $dragAndDropState.set({
+                    ...$dragAndDropState.get(),
+                    isDragging: true,
+                    dragPayload: {
+                      origin: "panel",
+                      type: "reparent",
+                      dragInstanceSelector: draggingItem.selector,
+                    },
+                    dropTarget: builderDropTarget,
+                  });
+                } else {
+                  $dragAndDropState.set({
+                    ...$dragAndDropState.get(),
+                    isDragging: false,
+                    dropTarget: undefined,
+                  });
+                }
+                */
+              }}
+              onDrop={(data) => {
+                /*
+                const builderDropTarget = $dragAndDropState.get().dropTarget;
+                if (builderDropTarget) {
+                  reparentInstance(data.selector, {
+                    parentSelector: builderDropTarget.itemSelector,
+                    position: builderDropTarget.indexWithinChildren,
+                  });
+                }
+                $dragAndDropState.set({ isDragging: false });
+                */
+              }}
+              onExpand={(isExpanded) => handleExpand(isExpanded, false)}
+            >
               <TreeNode
-                key={item.id}
                 level={item.level}
                 tabbable={index === 0}
                 isSelected={item.id === selectedPageId}
@@ -305,11 +353,11 @@ const PagesTree = ({
                   </TreeNodeLabel>
                 )}
               </TreeNode>
-            );
-          })}
-        </TreeRoot>
-      </Box>
-    </>
+            </TreeSortableItem>
+          );
+        })}
+      </TreeRoot>
+    </Box>
   );
 };
 
@@ -401,28 +449,56 @@ export const PagesPanel = ({ onClose }: { onClose: () => void }) => {
 
   return (
     <>
-      <PagesTree
-        onClose={onClose}
-        onCreateNewFolder={() => {
-          $editingPageId.set(
-            editingItemId === newFolderId ? undefined : newFolderId
-          );
-        }}
-        onCreateNewPage={() =>
-          $editingPageId.set(
-            editingItemId === newPageId ? undefined : newPageId
-          )
+      <PanelTitle
+        suffix={
+          <>
+            <Tooltip content="New folder" side="bottom">
+              <Button
+                onClick={() => {
+                  $editingPageId.set(
+                    editingItemId === newFolderId ? undefined : newFolderId
+                  );
+                }}
+                aria-label="New folder"
+                prefix={<NewFolderIcon />}
+                color="ghost"
+              />
+            </Tooltip>
+            <Tooltip content="New page" side="bottom">
+              <Button
+                onClick={() => {
+                  $editingPageId.set(
+                    editingItemId === newPageId ? undefined : newPageId
+                  );
+                }}
+                aria-label="New page"
+                prefix={<NewPageIcon />}
+                color="ghost"
+              />
+            </Tooltip>
+            <Tooltip content="Close panel" side="bottom">
+              <Button
+                color="ghost"
+                prefix={<CrossIcon />}
+                aria-label="Close panel"
+                onClick={onClose}
+              />
+            </Tooltip>
+          </>
         }
+      >
+        Pages
+      </PanelTitle>
+      <Separator />
+
+      <PagesTree
+        selectedPageId={currentPageId}
         onSelect={(itemId) => {
-          if (isFolder(itemId, pages.folders)) {
-            return;
-          }
           switchPage(itemId);
           onClose();
         }}
-        selectedPageId={currentPageId}
-        onEdit={$editingPageId.set}
         editingItemId={editingItemId}
+        onEdit={$editingPageId.set}
       />
 
       <ExtendedPanel isOpen={editingItemId !== undefined}>
